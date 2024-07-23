@@ -38,12 +38,27 @@ class Application(tornado.web.Application,
         self.start()
         ioloop.PeriodicCallback(self.prop_diff, 1 * 1000).start()
 
-    def getDeviceByName(self, dev_name: str):
-        for device in self.active_devices:
-            if device.name == dev_name:
-                return device
-        logging.warn("Device not found: {}".format(dev_name))
-        return None
+    def prop_diff(self):
+        try:
+            changed_props_old = copy.deepcopy(self.changed_props)
+            self.changed_props.clear()
+            for device, prop in changed_props_old:
+                device: Device
+                prop: Prop
+                message = {
+                    "route": "PROP",
+                    "data": {
+                        "deviceName":  device.name,
+                        "prop": {
+                            prop.name: prop.value
+                        }
+                    }
+                }
+                for conn in self.active_connections:
+                    conn.write_message(message=message)
+        except Exception as e:
+            logging.error("Error: {}".format(e))
+        return
 
     def onInfo(self, peer: pyles.Peer) -> None:
         super().onInfo(peer)
@@ -68,13 +83,14 @@ class Application(tornado.web.Application,
     
     def onExit(self, peer: pyles.Peer) -> None:
         super().onExit(peer)
+        # logging.info(f"Peer {peer.name} exited")
         try:
             device = self.getDeviceByName(peer.name)
             self.active_devices.remove(device)
             message = {
                 "route": "CONN",
                 "data": {
-                    "deivceName": peer.name,
+                    "deviceName": peer.name,
                     "connected":  False
                 }
             }
@@ -84,12 +100,13 @@ class Application(tornado.web.Application,
             logging.error("Error: {}".format(e))
 
     def info(self, peer: pyles.Peer) -> None:
+        # logging.info(f"Peer {peer.name} entered")
         try:
             self.active_devices.append(Device(peer.name))
             message = {
                 "route": "CONN",
                 "data": {
-                    "deivceName": peer.name,
+                    "deviceName": peer.name,
                     "connected":  True
                 }
             }
@@ -99,11 +116,12 @@ class Application(tornado.web.Application,
             logging.error("Error: {}".format(e))
 
     def onStatus(self, peer: pyles.Peer, status: int) -> None:
+        # logging.info(f"Peer {peer.name} status changed into {peer.statusStr}")
         try:
             message = {
                 "route": "STATUS",
                 "data": {
-                    "deivceName": peer.name,
+                    "deviceName": peer.name,
                     "statusInt":  status,
                     "statusStr":  peer.statusStr
                 }
@@ -121,7 +139,7 @@ class Application(tornado.web.Application,
             message = {
                 "route": "META",
                 "data": {
-                    "deivceName": peer_name,
+                    "deviceName": peer_name,
                     "metadata":   metadata
                 }
             }
@@ -131,6 +149,7 @@ class Application(tornado.web.Application,
             logging.error("Error: {}".format(e))
 
     def onProperty(self, peer: pyles.Peer, prop: pyles.Property) -> None:
+        # logging.info(f"Peer {peer.name} prop {prop.name} changed into {prop.valuestr}")
         try:
             device = self.getDeviceByName(peer.name)
             for dev_prop in device.props:
@@ -152,7 +171,7 @@ class Application(tornado.web.Application,
             message = {
                 "route": "CMD",
                 "data": {
-                    "deivceName": peer.name,
+                    "deviceName": peer.name,
                     "commands":   cmds
                 }
             }
@@ -160,28 +179,6 @@ class Application(tornado.web.Application,
                 conn.write_message(message=message)
         except Exception as e:
             logging.error("Error: {}".format(e))
-
-    def prop_diff(self):
-        try:
-            changed_props_old = copy.deepcopy(self.changed_props)
-            self.changed_props.clear()
-            for device, prop in changed_props_old:
-                device: Device
-                prop: Prop
-                message = {
-                    "route": "PROP",
-                    "data": {
-                        "deivceName":  device.name,
-                        "prop": {
-                            prop.name: prop.value
-                        }
-                    }
-                }
-                for conn in self.active_connections:
-                    conn.write_message(message=message)
-        except Exception as e:
-            logging.error("Error: {}".format(e))
-        return
     
     def onLog(self, peer: pyles.Peer, logmsg):
         super().onLog(peer, logmsg)
@@ -190,7 +187,7 @@ class Application(tornado.web.Application,
             message = {
                 "route": "LOG",
                 "data": {
-                    "deivceName": logmsg.name,
+                    "deviceName": logmsg.name,
                     "level":      logmsg.level.name,
                     "message":    logmsg.message,
                     "time":       orig_time.isoformat(),
@@ -200,3 +197,10 @@ class Application(tornado.web.Application,
                 conn.write_message(message=message)
         except Exception as e:
             logging.error("Error: {}".format(e))
+
+    def getDeviceByName(self, dev_name: str):
+        for device in self.active_devices:
+            if device.name == dev_name:
+                return device
+        logging.warn("Device not found: {}".format(dev_name))
+        return None

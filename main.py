@@ -4,6 +4,9 @@ from app import Application
 
 handlers = [
     (r"/", MainHandler),
+    (r"/teles", TelesHandler),
+    (r"/teles/set", TelesHandler.put),
+    (r"/teles/cmd", TelesHandler.post),
     (r"/ws/", EchoWebSocket),
 ]
 

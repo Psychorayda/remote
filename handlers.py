@@ -1,16 +1,30 @@
 from datetime import datetime
 import json
-from typing import List
+from typing import Any, List
 import tornado
-import tornado.web
 import tornado.websocket
 from tornado import ioloop
 
+
+# class BaseHandler(tornado.web.RequestHandler):
+#     def set_default_headers(self):
+#         self.set_header("Access-Control-Allow-Origin", "*")
+#         self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+#         self.set_header("Access-Control-Allow-Methods", "*")
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.write("WebSocket Server is running")
 
+class TelesHandler(tornado.web.RequestHandler):
+    def put(self, peer_name: str = None, prop_name: str = None, val: Any = None,):
+        print("set got")
+        print(f"{peer_name} {prop_name} {val}")
+        self.application.setPeerProp(peer_name, prop_name, val)
+
+    def post(self, peer_name: str, command: str):
+        print("cmd got")
+        self.application.sendPeerCmd(peer_name, command)
 
 class EchoWebSocket(tornado.websocket.WebSocketHandler):
     def open(self):
@@ -40,7 +54,6 @@ class EchoWebSocket(tornado.websocket.WebSocketHandler):
         }
         try:
             self.write_message(message)
-            print("Send message:", message)
         except tornado.websocket.WebSocketClosedError:
             print("WebSocket is closed. Stopping periodic ping.")
             self.periodic_ping.stop()

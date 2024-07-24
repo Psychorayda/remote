@@ -1,10 +1,10 @@
 import copy
 from datetime import datetime, timezone
 import logging
+from typing import Any
 import pytz
 import tornado
 import tornado.websocket
-import tornado.web 
 from tornado import ioloop
 import pyles
 
@@ -39,6 +39,20 @@ class Application(tornado.web.Application,
         self.start()
         ioloop.PeriodicCallback(self.prop_diff, 1 * 1000).start()
 
+    def setPeerProp(self, peer_name: str, prop_name: str, val: Any) -> None:
+        try:
+            peer = self.get_peer(peer_name)
+            self.setprop(peer, prop_name, val)
+        except Exception as e:
+            logging.error("Error: {}".format(e))
+
+    def sendPeerCmd(self, peer_name: str, command: str) -> None:
+        try:
+            peer = self.get_peer(peer_name)
+            self.sendcmd(peer, *command.split(','))
+        except Exception as e:
+            logging.error("Error: {}".format(e))
+
     def prop_diff(self):
         try:
             changed_props_old = copy.deepcopy(self.changed_props)
@@ -57,7 +71,6 @@ class Application(tornado.web.Application,
                 }
                 for conn in self.active_connections:
                     conn.write_message(message=message)
-                    print("Send message:", message)
         except Exception as e:
             logging.error("Error: {}".format(e))
         return

@@ -4,6 +4,7 @@ import logging
 import pytz
 import tornado
 import tornado.websocket
+import tornado.web 
 from tornado import ioloop
 import pyles
 
@@ -56,6 +57,7 @@ class Application(tornado.web.Application,
                 }
                 for conn in self.active_connections:
                     conn.write_message(message=message)
+                    print("Send message:", message)
         except Exception as e:
             logging.error("Error: {}".format(e))
         return

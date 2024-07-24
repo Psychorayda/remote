@@ -2,6 +2,7 @@ from datetime import datetime
 import json
 from typing import List
 import tornado
+import tornado.web
 import tornado.websocket
 from tornado import ioloop
 
@@ -39,6 +40,7 @@ class EchoWebSocket(tornado.websocket.WebSocketHandler):
         }
         try:
             self.write_message(message)
+            print("Send message:", message)
         except tornado.websocket.WebSocketClosedError:
             print("WebSocket is closed. Stopping periodic ping.")
             self.periodic_ping.stop()

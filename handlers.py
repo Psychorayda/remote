@@ -16,15 +16,36 @@ class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.write("WebSocket Server is running")
 
-class TelesHandler(tornado.web.RequestHandler):
-    def put(self, peer_name: str = None, prop_name: str = None, val: Any = None,):
-        print("set got")
-        print(f"{peer_name} {prop_name} {val}")
-        self.application.setPeerProp(peer_name, prop_name, val)
+class TelesSetHandler(tornado.web.RequestHandler):
+    async def post(self):
+        try:
+            body: dict = json.loads(self.request.body)
+            peer_name = body.get('peer_name')
+            prop_name = body.get('prop_name')
+            val = body.get('val')
+            if not peer_name or not prop_name or val is None:
+                self.set_status(400)
+                self.write("Invalid request: Missing parameters")
+                return
+            self.application.setPeerProp(peer_name, prop_name, val)
+        except json.JSONDecodeError:
+            self.set_status(400)
+            self.write("Invalid request: Unable to decode JSON")
 
-    def post(self, peer_name: str, command: str):
-        print("cmd got")
-        self.application.sendPeerCmd(peer_name, command)
+class TelesCmdHandler(tornado.web.RequestHandler):
+    async def post(self):
+        try:
+            body: dict = json.loads(self.request.body)
+            peer_name = body.get('peer_name')
+            command = body.get('command')
+            if not peer_name or not command:
+                self.set_status(400)
+                self.write("Invalid request: Missing parameters")
+                return
+            self.application.sendPeerCmd(peer_name, command)
+        except json.JSONDecodeError:
+            self.set_status(400)
+            self.write("Invalid request: Unable to decode JSON")
 
 class EchoWebSocket(tornado.websocket.WebSocketHandler):
     def open(self):
@@ -59,7 +80,7 @@ class EchoWebSocket(tornado.websocket.WebSocketHandler):
             self.periodic_ping.stop()
 
     def on_message(self, message):
-        print("Received message:", message)
+        # print("Received message:", message)
         message: dict = json.loads(message)
         if message["route"] == "PING":
             self.write_message({

@@ -3,14 +3,11 @@ import json
 from typing import Any, List
 import tornado
 import tornado.websocket
+import tornado.web
 from tornado import ioloop
 
+from device import *
 
-# class BaseHandler(tornado.web.RequestHandler):
-#     def set_default_headers(self):
-#         self.set_header("Access-Control-Allow-Origin", "*")
-#         self.set_header("Access-Control-Allow-Headers", "x-requested-with")
-#         self.set_header("Access-Control-Allow-Methods", "*")
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
@@ -91,6 +88,43 @@ class EchoWebSocket(tornado.websocket.WebSocketHandler):
                     "count": message["data"]["count"]
                 }
             })
+        elif message["route"] == "PONG":
+            pass
+        elif message["route"] == "ALL":
+            for device in self.application.active_devices:
+                device: Device
+                self.write_message({
+                    "route": "CONN",
+                    "data": {
+                        "deviceName": device.name,
+                        "connected":  True
+                    }
+                })
+                self.write_message({
+                    "route": "STATUS",
+                    "data": {
+                        "deviceName": device.name,
+                        "statusInt":  device.status.value_int,
+                        "statusStr":  device.status.value_str
+                    }
+                })
+                self.write_message({
+                    "route": "META",
+                    "data": {
+                        "deviceName": device.name,
+                        "metadata":   device.metadata
+                    }
+                })
+                self.write_message({
+                    "route": "CMD",
+                    "data": {
+                        "deviceName": device.name,
+                        "commands":   device.cmds
+                    }
+                })
+        else: 
+            print(f"Unknown websocket route.")
+                
     
 
 active_connections: List[EchoWebSocket] = []

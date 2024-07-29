@@ -2,37 +2,28 @@ import copy
 from datetime import datetime, timezone
 import logging
 from typing import Any
-import pytz
 import tornado
 import tornado.websocket
+import tornado.web
 from tornado import ioloop
 import pyles
 
 from handlers import active_connections
+from device import *
 
-
-class Prop:
-    def __init__(self, name: str, value: str):
-        self.name = name
-        self.value = value
-
-class Device:
-    def __init__(self, name: str):
-        self.name = name
-        self.props: list[Prop] = []
 
 class Application(tornado.web.Application, 
                   pyles.TelesApp):
     def __init__(self, handlers) -> None:
         tornado.web.Application.__init__(self, handlers=handlers)
         pyles.TelesApp.__init__(self, 
-                                name="web", 
-                                in_type="server", 
-                                is_client=True, 
-                                recvlog=True, 
-                                recvvalue=True,
-                                site="test",
-                                interface="")
+                                name =      "web", 
+                                in_type =   "server", 
+                                is_client = True, 
+                                recvlog =   True, 
+                                recvvalue = True,
+                                site =      "test",
+                                interface = "")
         self.active_devices: list[Device] = []
         self.changed_props = set()
         self.active_connections = active_connections
@@ -96,6 +87,22 @@ class Application(tornado.web.Application,
         except Exception as e:
             logging.error("Error: {}".format(e))
     
+    def info(self, peer: pyles.Peer) -> None:
+        # logging.info(f"Peer {peer.name} entered")
+        try:
+            self.active_devices.append(Device(peer.name))
+            message = {
+                "route": "CONN",
+                "data": {
+                    "deviceName": peer.name,
+                    "connected":  True
+                }
+            }
+            for conn in self.active_connections:
+                conn.write_message(message=message)
+        except Exception as e:
+            logging.error("Error: {}".format(e))
+    
     def onExit(self, peer: pyles.Peer) -> None:
         super().onExit(peer)
         # logging.info(f"Peer {peer.name} exited")
@@ -114,25 +121,12 @@ class Application(tornado.web.Application,
         except Exception as e:
             logging.error("Error: {}".format(e))
 
-    def info(self, peer: pyles.Peer) -> None:
-        # logging.info(f"Peer {peer.name} entered")
-        try:
-            self.active_devices.append(Device(peer.name))
-            message = {
-                "route": "CONN",
-                "data": {
-                    "deviceName": peer.name,
-                    "connected":  True
-                }
-            }
-            for conn in self.active_connections:
-                conn.write_message(message=message)
-        except Exception as e:
-            logging.error("Error: {}".format(e))
-
     def onStatus(self, peer: pyles.Peer, status: int) -> None:
         # logging.info(f"Peer {peer.name} status changed into {peer.statusStr}")
         try:
+            device = self.getDeviceByName(peer.name)
+            device.status.value_int = status
+            device.status.value_str = peer.statusStr
             message = {
                 "route": "STATUS",
                 "data": {
@@ -149,6 +143,7 @@ class Application(tornado.web.Application,
     def metadataChange(self, peer_name: str, metadata: dict) -> None:
         try:
             device = self.getDeviceByName(peer_name)
+            device.metadata = metadata
             for prop_name, prop_meta in metadata.items():
                 device.props.append(Prop(prop_name, prop_meta["value"]))
             message = {
@@ -183,6 +178,8 @@ class Application(tornado.web.Application,
                 cmds[cmdname]['args'] = {}
                 for arg in cmd.args:
                     cmds[cmdname]['args'][arg.argname] = str(arg.type)[8:]
+            device = self.getDeviceByName(peer.name)
+            device.cmds = cmds
             message = {
                 "route": "CMD",
                 "data": {
